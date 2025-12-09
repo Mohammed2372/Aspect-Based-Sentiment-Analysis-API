@@ -4,6 +4,7 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
 import spacy
 import os
+import sys
 
 
 class AnalyzerConfig(AppConfig):
@@ -18,6 +19,33 @@ class AnalyzerConfig(AppConfig):
     def ready(self) -> None:
         # Prevent double loading if Django reloads
         if AnalyzerConfig.bert_model is not None:
+            return
+
+        # List of commands where we definitely DO NOT want to load models
+        ignore_commands = [
+            "makemigrations",
+            "migrate",
+            "createsuperuser",
+            "test",
+            "shell",
+            "collectstatic",
+            "showmigrations",
+        ]
+
+        # Check if any argument in the command line matches the ignore list
+        is_management_command = any(cmd in sys.argv for cmd in ignore_commands)
+
+        # Also, ensure we are actually running a server process.
+        is_runserver = "runserver" in sys.argv
+        is_production_server = (
+            "manage.py" not in sys.argv[0]
+        )
+
+        if is_management_command:
+            print("🛑 Skipping AI Model load for management command.")
+            return
+
+        if not (is_runserver or is_production_server):
             return
 
         print("🤖 Loading AI Models...")
