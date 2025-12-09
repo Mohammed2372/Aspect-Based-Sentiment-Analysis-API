@@ -1,11 +1,17 @@
+from django.contrib.auth.models import User
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework import status, generics
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
 
 from .models import AspectResult
-from .serializers import ReviewSerializer, AnalysisRecord, AnalysisHistorySerializer
+from .serializers import (
+    ReviewSerializer,
+    AnalysisRecord,
+    AnalysisHistorySerializer,
+    UserRegistrationSerializer,
+)
 from .services import ABSAService
 
 
@@ -61,3 +67,9 @@ class UserHistoryView(APIView):
         )
         serializer = AnalysisHistorySerializer(history, many=True)
         return Response(serializer.data)
+
+
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    permission_classes = [AllowAny]
+    serializer_class = UserRegistrationSerializer
