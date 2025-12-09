@@ -22,3 +22,22 @@ class AspectResult(models.Model):
 
     def __str__(self) -> str:
         return f"{self.aspect}: {self.sentiment}"
+
+
+class FileUpload(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("processing", "Processing"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="uploads")
+    csv_file = models.FileField(upload_to="bulk_uploads/")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    total_rows = models.IntegerField(default=0)
+    processed_rows = models.IntegerField(default=0)
+
+    def __str__(self) -> str:
+        return f"File {self.id} {self.status}"

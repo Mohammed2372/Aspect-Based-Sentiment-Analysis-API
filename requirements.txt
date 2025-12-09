@@ -18,3 +18,7 @@ spacy
 django
 djangorestframework
 djangorestgramework-simplejwt
+
+# server and worder
+redis
+celery

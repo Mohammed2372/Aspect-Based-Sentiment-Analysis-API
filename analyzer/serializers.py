@@ -3,7 +3,7 @@ from rest_framework import serializers
 from rest_framework.serializers import Serializer, ModelSerializer
 
 
-from .models import AspectResult, AnalysisRecord
+from .models import AspectResult, AnalysisRecord, FileUpload
 
 
 class ReviewSerializer(Serializer):
@@ -40,3 +40,23 @@ class UserRegistrationSerializer(ModelSerializer):
             password=validated_data["password"],
         )
         return user
+
+
+class FileUploadSerializer(ModelSerializer):
+    class Meta:
+        model = FileUpload
+        fields = [
+            "id",
+            "csv_file",
+            "uploaded_at",
+            "status",
+            "total_rows",
+            "processed_rows",
+        ]
+        read_only_fields = [
+            "status",
+            "total_rows",
+            "processed_rows",
+            "uploaded_at",
+            "id",
+        ]
