@@ -1,0 +1,15 @@
+# Data Manipulation & Visualization
+pandas
+matplotlib
+seaborn
+wordcloud
+scikit-learn
+
+# NLP & Deep Learning
+torch
+transformers
+datasets
+evaluate
+accelerate
+emoji
+spacy
