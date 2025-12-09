@@ -9,6 +9,21 @@ from django.apps import apps
 
 
 class ABSAService:
+    
+    PREFIX_STOPWORDS = {
+        "the", "a", "an", "my", "our", "your", "their", "this", "that", 
+        "these", "those", "some", "any", "all", "few", "many", "several"
+    }
+    
+    BLACKLIST_ASPECTS = {
+        # Sentiment Adjectives (Positive)
+        "good", "great", "excellent", "amazing", "wonderful", "awesome", "nice", "best", "perfect",
+        # Sentiment Adjectives (Negative)
+        "bad", "terrible", "awful", "horrible", "worst", "poor", "slow", "rude", "garbage", "trash", "useless",
+        # Generic filler nouns
+        "thing", "things", "stuff", "bit", "lot", "way", "example"
+    }
+    
     @staticmethod
     def clean_text(text) -> str:
         text = html.unescape(str(text))
@@ -31,21 +46,55 @@ class ABSAService:
     def extract_aspects(text) -> list:
         nlp, _, _, _ = ABSAService.get_models()
         doc = nlp(text)
-        
-        aspects = set()
+
+        candidates_aspects = set()
 
         # Noun Chunks
         for chunk in doc.noun_chunks:
+            # skip pronouns
             if chunk.root.pos_ == "PRON":
                 continue
-            aspects.add(chunk.text.lower())
 
-        # Standalone Nouns
-        for token in doc:
-            if token.pos_ == "NOUN" and len(token.text) > 2:
-                aspects.add(token.text.lower())
+            # clean text
+            clean_text = chunk.text.lower()
+            words = clean_text.split()
+            
+            # remove leading stopwords
+            if words[0] in ABSAService.PREFIX_STOPWORDS:
+                clean_text = " ".join(words[1:])
 
-        return list(aspects)
+            clean_text = clean_text.strip()
+            
+            # add only if not empty and not in blacklist
+            if clean_text and clean_text not in ABSAService.BLACKLIST_ASPECTS:
+                candidates_aspects.add(clean_text)
+                
+        # Named Entities
+        for ent in doc.ents:
+            clean_ent = ent.text.lower().strip()
+            if clean_ent and clean_ent not in ABSAService.BLACKLIST_ASPECTS:
+                candidates_aspects.add(clean_ent)
+
+        # Intelligent Filtering (Duplication)
+        ## convert list and sort by length
+        sorted_candidates_aspects = sorted(
+            list(candidates_aspects), key=len, reverse=True
+        )
+
+        final_aspects = []
+        for candidate in sorted_candidates_aspects:
+            # check if candidate is already inside another longer aspect
+            is_subset = False
+            for aspect in final_aspects:
+                # token-based check
+                if candidate in aspect:
+                    is_subset = True
+                    break
+
+            if not is_subset:
+                final_aspects.append(candidate)
+
+        return list(final_aspects)
 
     @staticmethod
     def analyze_sentiment(text):
