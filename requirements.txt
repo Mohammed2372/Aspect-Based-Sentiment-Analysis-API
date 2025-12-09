@@ -22,3 +22,6 @@ djangorestgramework-simplejwt
 # server and worder
 redis
 celery
+
+# Swagger frontend
+dfr-spectacular
