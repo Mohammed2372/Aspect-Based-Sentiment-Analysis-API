@@ -13,3 +13,7 @@ evaluate
 accelerate
 emoji
 spacy
+
+# Django Backend
+django
+djangorestframework
