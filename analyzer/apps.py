@@ -3,6 +3,7 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 import torch
 import spacy
+import os
 
 
 class AnalyzerConfig(AppConfig):
@@ -15,11 +16,21 @@ class AnalyzerConfig(AppConfig):
     device = None
 
     def ready(self) -> None:
-        print("🤖 Loading AI Models... (This may take 10-20 seconds)")
+        # Prevent double loading if Django reloads
+        if AnalyzerConfig.bert_model is not None:
+            return
+
+        print("🤖 Loading AI Models...")
 
         try:
             # path to the model folder
-            model_path = "../model/absa_bert_model"
+            app_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(app_dir)
+            model_path = os.path.join(project_root, "model", "absa_bert_model")
+            print(f"   📂 Looking for model at: {model_path}")
+
+            if not os.path.exists(model_path):
+                raise FileNotFoundError(f"Model folder not found at {model_path}")
 
             # load bert model
             self.tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -33,9 +44,12 @@ class AnalyzerConfig(AppConfig):
             self.bert_model.eval()
 
             # load spacy (for aspect extraction)
-            if not spacy.util.is_package("en_core_web_sm"):
+            try:
+                self.nlp = spacy.load("en_core_web_sm")
+            except OSError:
+                print("   ⚠️  SpaCy model not found. Downloading...")
                 spacy.cli.download("en_core_web_sm")
-            self.nlp = spacy.load("en_core_web_sm")
+                self.nlp = spacy.load("en_core_web_sm")
 
             print("✅ AI Models Loaded Successfully!")
 
