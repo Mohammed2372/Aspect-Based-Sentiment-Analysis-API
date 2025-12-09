@@ -1,127 +1,142 @@
-from django.shortcuts import get_object_or_404
+from typing import NoReturn
+from django.db.models.manager import BaseManager
 from django.contrib.auth.models import User
-from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status, generics
+from rest_framework import status, generics, viewsets
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.pagination import PageNumberPagination
 
 
-from .models import AspectResult, FileUpload
+from .models import AspectResult, AnalysisSession, AnalysisRecord
 from .serializers import (
-    ReviewSerializer,
-    AnalysisRecord,
-    AnalysisHistorySerializer,
+    AnalysisRecordSerializer,
     UserRegistrationSerializer,
-    FileUploadSerializer,
+    SessionDetailSerializer,
+    AnalysisSessionSerializer,
 )
 from .services import ABSAService
 from .tasks import process_bulk_file
 
 
 # Create your views here.
-class ReviewAnalysisView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request) -> Response:
-        serializer = ReviewSerializer(data=request.data)
-
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        # get data
-        text = serializer.validated_data["text"]
-
-        try:
-            # run AI logic
-            ai_responses = ABSAService.analyze_sentiment(text)
-
-            # save
-            record = AnalysisRecord.objects.create(
-                user=request.user, original_text=text
-            )
-
-            # Bulk create aspect results
-            bulk_aspect_objects = [
-                AspectResult(
-                    record=record,
-                    aspect=item["aspect"],
-                    sentiment=item["sentiment"],
-                    confidence=item["confidence"],
-                )
-                for item in ai_responses["analysis"]
-            ]
-
-            AspectResult.objects.bulk_create(bulk_aspect_objects)
-
-            return Response(ai_responses, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            return Response(
-                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-
-class UserHistoryView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request) -> Response:
-        history = AnalysisRecord.objects.filter(user=request.user).order_by(
-            "-created_at"
-        )
-        serializer = AnalysisHistorySerializer(history, many=True)
-        return Response(serializer.data)
-
-
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = [AllowAny]
     serializer_class = UserRegistrationSerializer
 
 
-class BulkUploadView(APIView):
-    permission_classes = [AllowAny]
-    parser_classes = [MultiPartParser, FormParser]
-    serializer_class = FileUploadSerializer
+class BulkResultPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
-    def post(self, request) -> Response:
-        uploaded_file = request.FILES.get("csv_file") or request.FILES.get("file")
-        if not uploaded_file:
-            return Response({"error": "No file attached"}, status=400)
 
-        # create db entry
-        serializer = FileUploadSerializer(data={"csv_file": uploaded_file})
-        if serializer.is_valid():
-            upload_instance = serializer.save(user=request.user)
-            # send to celery (async)
-            process_bulk_file.delay(upload_instance.id)
+class AnalysisSessionViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
+    def get_queryset(self) -> BaseManager[AnalysisSession]:
+        return AnalysisSession.objects.filter(user=self.request.user).order_by(
+            "-created_at"
+        )
+
+    def get_serializer_class(
+        self,
+    ) -> SessionDetailSerializer | AnalysisSessionSerializer:
+        if self.action == "retrieve":
+            return SessionDetailSerializer
+        return AnalysisSessionSerializer
+
+    def create(self, request, *args, **kwargs) -> Response:
+        if "csv_file" in request.FILES:
+            csv_file = request.FILES["csv_file"]
+
+            session = AnalysisSession.objects.create(
+                user=request.user,
+                session_type="FILE",
+                csv_file=csv_file,
+                status="Pending",
+                total_items=0,
+            )
+
+            process_bulk_file.delay(session.id)
+
+            serializer = AnalysisSessionSerializer(session)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        elif "text" in request.data:
+            text = request.data["text"]
+
+            session = AnalysisSession.objects.create(
+                user=request.user,
+                session_type="TEXT",
+                raw_input_text=text,
+                status="Pending",
+                total_items=1,
+            )
+
+            self._process_text_snc(session, text)
+
+            serializer = AnalysisSessionSerializer(session)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        else:
             return Response(
                 {
-                    "message": "File accepted. Processing in background",
-                    "data": serializer.data,
-                    "status_url": f"/api/bulk-status/{upload_instance.id}/",
+                    "error": "Please provide either 'csv_file' (file) or 'text' (string)."
                 },
-                status=status.HTTP_202_ACCEPTED,
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def retrieve(self, request, *args, **kwargs) -> NoReturn:
+        session = self.get_object()
 
+        # get session records
+        records = session.records.all().order_by("id")
 
-class BulkStatusView(APIView):
-    permission_classes = [AllowAny]
+        # paginate records
+        paginator = BulkResultPagination()
+        paginated_records = paginator.paginate_queryset(records, request)
 
-    def get(self, request, file_id) -> Response:
+        # serialize records
+        record_serializer = AnalysisRecordSerializer(paginated_records, many=True)
+
+        # serialize session data
+        session_data = SessionDetailSerializer(session).data
+        session_data["records"] = record_serializer.data
+
+        return paginator.get_paginated_response(session_data)
+
+    # --- Helper Method --- #
+    def _process_text_snc(self, session: AnalysisSession, text: str) -> None:
         try:
-            upload = get_object_or_404(FileUpload, id=file_id, user=request.user)
-            serializer = FileUploadSerializer(upload)
+            # run AI logic
+            ai_result = ABSAService.analyze_sentiment(text)
 
-            response_data = serializer.data
-            response_data["progress_display"] = (
-                f"{upload.processed_rows}/{upload.total_rows}"
+            # create record linked to session
+            record = AnalysisRecord.objects.create(
+                session=session,
+                user=session.user,
+                original_text=text,
             )
-            return Response(response_data, status=status.HTTP_200_OK)
-        except FileUpload.DoesNotExist:
-            return Response(
-                {"error": "File not found"}, status=status.HTTP_404_NOT_FOUND
-            )
+
+            # create aspects
+            aspects = [
+                AspectResult(
+                    record=record,
+                    aspect=item["aspect"],
+                    sentiment=item["sentiment"],
+                    confidence=item["confidence"],
+                )
+                for item in ai_result["analysis"]
+            ]
+            AspectResult.objects.bulk_create(aspects)
+
+            # update session status
+            session.status = "Completed"
+            session.save()
+
+        except Exception as e:
+            session.status = f"Failed: {str(e)}"
+            session.save()

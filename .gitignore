@@ -16,6 +16,7 @@ __pycache__/
 # Local databases
 *.sqlite3
 db.sqlite3
+uploads/
 
 # Django media and static files
 staticfiles/

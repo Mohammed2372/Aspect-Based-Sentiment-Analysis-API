@@ -2,22 +2,22 @@ from celery import shared_task
 
 import csv
 
-from .models import FileUpload, AnalysisRecord, AspectResult
+from .models import AnalysisRecord, AspectResult, AnalysisSession
 from .services import ABSAService
 
 
 @shared_task
-def process_bulk_file(file_id) -> None:
+def process_bulk_file(session_id: int) -> None:
     try:
-        # setup
-        upload = FileUpload.objects.get(id=file_id)
-        upload.status = "Processing"
-        upload.save()
+        # Get Session
+        session = AnalysisSession.objects.get(id=session_id)
+        session.status = "Processing"
+        session.save()
 
-        print(f"🚀 Starting bulk processing for File {file_id}")
+        print(f"🚀 Starting bulk processing for session {session_id}")
 
         # read csv
-        with open(upload.csv_file.path, "r", encoding="utf-8", errors="replace") as f:
+        with open(session.csv_file.path, "r", encoding="utf-8", errors="replace") as f:
             reader = csv.reader(f)
             rows = list(reader)
 
@@ -30,8 +30,8 @@ def process_bulk_file(file_id) -> None:
 
         # Save total count immediately
         count = len(rows)
-        upload.total_rows = count
-        upload.save()
+        session.total_rows = count
+        session.save()
 
         # process rows
         all_aspects_results = []
@@ -44,10 +44,11 @@ def process_bulk_file(file_id) -> None:
             # run AI logic
             ai_result = ABSAService.analyze_sentiment(text)
 
-            # create record
+            # create record linked to session
             record = AnalysisRecord(
-                user=upload.user,
+                user=session.user,
                 original_text=text,
+                session=session,
             )
             record.save()
 
@@ -63,20 +64,20 @@ def process_bulk_file(file_id) -> None:
                 )
 
             if i % 10 == 0:
-                upload.processed_rows = i
-                upload.save()
+                session.processed_rows = i
+                session.save()
 
         # bulk save results
         AspectResult.objects.bulk_create(all_aspects_results)
 
         # finish
-        upload.status = "Completed"
-        upload.processed_rows = len(rows)
-        upload.save()
-        print(f"✅ Finished File {file_id}")
+        session.status = "Completed"
+        session.processed_rows = len(rows)
+        session.save()
+        print(f"✅ Finished session {session_id}")
 
     except Exception as e:
         print(f"❌ Error: {e}")
-        # upload.status = "Failed"
-        upload.status = f"Err: {str(e)[:20]}"
-        upload.save()
+        # session.status = "Failed"
+        session.status = f"Err: {str(e)[:20]}"
+        session.save()
