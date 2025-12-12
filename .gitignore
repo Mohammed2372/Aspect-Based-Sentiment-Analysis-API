@@ -5,8 +5,9 @@ Data
 model
 
 # Environments
-env/
+.venv/
 venv/
+env/
 .env
 
 # Python cache files
@@ -15,7 +16,7 @@ __pycache__/
 
 # Local databases
 *.sqlite3
-db.sqlite3
+*.db
 
 # media and static files
 staticfiles/
