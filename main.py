@@ -1,6 +1,8 @@
-def main():
-    print("Hello from aspect-based-sentiment-analysis!")
+from fastapi import FastAPI
+
+app = FastAPI(title="ABSA System API")
 
 
-if __name__ == "__main__":
-    main()
+@app.get("/")
+def health_check():
+    return {"status": "ok", "message": "FastAPI is running 🚀"}
