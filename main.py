@@ -1,4 +1,3 @@
-from typing import Any, Generator
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
@@ -14,7 +13,7 @@ ai_models = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.absa_model = ABSAModel("model/absa_bert_model")
+    app.state.absa_model = ABSAModel()
     yield
     app.state.absa_model = None
 

@@ -1,15 +1,23 @@
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
 import torch
 import spacy
 import subprocess
 import sys
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import os
 
 
 class ABSAModel:
-    def __init__(self, model_path: str = "bert-base-uncased"):
+    def __init__(self):
+        model_path = "model/absa_bert_model"
         print("⏳ Loading AI Models...")
 
-        # load aspect extractor
+        if not os.path.exists(model_path):
+            raise ValueError(
+                f"❌ Model folder not found at {model_path}. Did you create it?"
+            )
+
+        # load spacy aspect extractor
         try:
             self.nlp = spacy.load("en_core_web_sm")
         except OSError:
@@ -21,10 +29,13 @@ class ABSAModel:
 
         # load BERT sentiment model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_path)
-        self.model.to(self.device)
-        self.model.eval()
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+            self.model = AutoModelForSequenceClassification.from_pretrained(model_path)
+            self.model.to(self.device)
+            self.model.eval()
+        except Exception as e:
+            raise RuntimeError(f"❌ Failed to load model files: {e}")
 
         # labels map
         self.labels = {0: "negative", 1: "neutral", 2: "positive"}
