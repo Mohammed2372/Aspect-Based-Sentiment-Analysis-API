@@ -4,7 +4,7 @@ from pydantic import BaseModel, EmailStr
 # base property shared by models
 class UserBase(BaseModel):
     email: EmailStr
-
+    username: str
 
 class UserCreate(UserBase):
     password: str

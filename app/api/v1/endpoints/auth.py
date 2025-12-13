@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from app.api import deps
 from app.core import security
-from app.core.config import Settings
+from app.core.config import settings
 from app.db import crud_user
 from app.schemas.user import UserCreate, UserResponse, Token
 
@@ -22,6 +22,14 @@ def register_user(user_in: UserCreate, db: Session = Depends(deps.get_db)):
             status_code=400,
             detail="The user with this email already exists in the system.",
         )
+
+    # check if username exists
+    if crud_user.get_user_by_username(db, username=user_in.username):
+        raise HTTPException(
+            status_code=400,
+            detail="The user with this username already exists in the system.",
+        )
+
     # create user
     user = crud_user.create_user(db, user=user_in)
     return user
@@ -33,7 +41,7 @@ def login_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
 ):
     # authenticate
-    user = crud_user.get_user_by_email(db, email=form_data.username)
+    user = crud_user.get_user_by_username(db, username=form_data.username)
     if not user or not security.verify_password(
         form_data.password, user.hashed_password
     ):
@@ -43,7 +51,7 @@ def login_access_token(
         )
 
     # create JWT
-    access_token_expires = timedelta(minutes=Settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token(
         data={"sub": user.email},
         expires_delta=access_token_expires,

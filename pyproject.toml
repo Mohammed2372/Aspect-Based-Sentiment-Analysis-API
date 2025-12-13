@@ -19,4 +19,5 @@ dependencies = [
     "torch>=2.9.1",
     "transformers>=4.57.3",
     "spacy>=3.8.11",
+    "bcrypt==3.2.2",
 ]

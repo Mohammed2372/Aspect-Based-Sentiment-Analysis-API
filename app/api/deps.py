@@ -16,7 +16,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/login")
 # database dependency
 def get_db() -> Generator:
     try:
-        db = session_local
+        db = session_local()
         yield db
     finally:
         db.close()

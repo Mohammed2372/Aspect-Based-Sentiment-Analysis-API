@@ -1,6 +1,7 @@
 from . import Boolean, Integer, Column, String, relationship
 
 from app.db.base import Base
+from app.models.analysis import AnalysisSession
 
 
 class User(Base):
@@ -13,4 +14,4 @@ class User(Base):
     is_active = Column(Boolean, default=True)
 
     # relation to the analysis session
-    sessions = relationship("AnalysisSession", back_populates="user")
+    sessions = relationship(AnalysisSession, back_populates="user")
