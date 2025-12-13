@@ -29,7 +29,7 @@ class AnalysisSession(Base):
 class AnalysisRecord(Base):
     __tablename__ = "analysis_records"
 
-    id = Column(Integer, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
 
     session_id = Column(String, ForeignKey("analysis_sessions.id"))
     original_text = Column(Text)
@@ -42,7 +42,7 @@ class AnalysisRecord(Base):
 class AspectResult(Base):
     __tablename__ = "aspect_results"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     record_id = Column(String, ForeignKey("analysis_records.id"))
     aspect = Column(String)

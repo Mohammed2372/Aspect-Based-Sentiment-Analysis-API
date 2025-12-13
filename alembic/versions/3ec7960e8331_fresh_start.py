@@ -1,8 +1,8 @@
-"""Initial tables
+"""fresh start
 
-Revision ID: 85944387fdf2
+Revision ID: 3ec7960e8331
 Revises: 
-Create Date: 2025-12-12 19:18:19.316319
+Create Date: 2025-12-13 16:56:23.763954
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '85944387fdf2'
+revision: str = '3ec7960e8331'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -46,14 +46,14 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('analysis_records',
-    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('id', sa.String(), nullable=False),
     sa.Column('session_id', sa.String(), nullable=True),
     sa.Column('original_text', sa.Text(), nullable=True),
     sa.ForeignKeyConstraint(['session_id'], ['analysis_sessions.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('aspect_results',
-    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('record_id', sa.String(), nullable=True),
     sa.Column('aspect', sa.String(), nullable=True),
     sa.Column('sentiment', sa.String(), nullable=True),
