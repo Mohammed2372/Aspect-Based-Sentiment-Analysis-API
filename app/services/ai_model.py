@@ -31,13 +31,54 @@ class ABSAModel:
         print(f"✅ Models loaded on {self.device}!")
 
     def predict(self, text: str):
+        IGNORED_ASPECTS = {
+            "time",
+            "minute",
+            "hour",
+            "day",
+            "year",
+            "moment",
+            "lot",
+            "bit",
+            "bunch",
+            "plenty",
+            "thing",
+            "something",
+            "anything",
+            "everything",
+            "nothing",
+            "way",
+            "part",
+            "side",
+            "kind",
+            "sort",
+            "type",
+            "one",
+            "example",
+            "reason",
+            "issue",
+            "problem",
+        }
         # extract aspects
         doc = self.nlp(text)
-        aspects = list(set([chunk.root.text for chunk in doc.noun_chunks]))
+        aspects = []
 
-        results = []
+        for chunk in doc.noun_chunks:
+            word = chunk.root.text.lower().strip()
+            token = chunk.root
+
+            if (
+                not token.is_stop
+                and token.pos_ != "PRON"
+                and len(word) > 2
+                and word not in IGNORED_ASPECTS
+            ):
+                aspects.append(chunk.root.text)
+
+        aspects = list(set(aspects))
 
         # analyze each aspect
+        results = []
         for aspect in aspects:
             inputs = self.tokenizer(
                 text,
